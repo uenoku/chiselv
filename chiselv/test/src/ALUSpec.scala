@@ -51,49 +51,11 @@ class ALUSpec extends AnyFlatSpec with should.Matchers {
     Array[BigInt](1, 2, 4, 123, -1, -2, -4, 0, 0x7fffffffL, 0x80000000L, max, min_signed, max_signed) ++ Seq.fill(10)(
       BigInt(scala.util.Random.nextInt())
     )
-
-  it should "ADD" in {
-    testCycle(ADD)
+  val ops = Seq(ADD, SUB, AND, OR, XOR, SRA, SRL, SLL, SLT, SLTU, EQ, NEQ, GTE, NEQ)
+  it should "ALL work" in {
+    testCycle()
   }
-  it should "SUB" in {
-    testCycle(SUB)
-  }
-  it should "AND" in {
-    testCycle(AND)
-  }
-  it should "OR" in {
-    testCycle(OR)
-  }
-  it should "XOR" in {
-    testCycle(XOR)
-  }
-  it should "SRA" in {
-    testCycle(SRA)
-  }
-  it should "SRL" in {
-    testCycle(SRL)
-  }
-  it should "SLL" in {
-    testCycle(SLL)
-  }
-  it should "SLT" in {
-    testCycle(SLT)
-  }
-  it should "SLTU" in {
-    testCycle(SLTU)
-  }
-  it should "EQ" in {
-    testCycle(EQ)
-  }
-  it should "NEQ" in {
-    testCycle(NEQ)
-  }
-  it should "GT" in {
-    testCycle(GTE)
-  }
-  it should "GTU" in {
-    testCycle(GTEU)
-  }
+  
   // --------------------- Test Helpers ---------------------
   def aluHelper(
       a:  BigInt,
@@ -132,16 +94,18 @@ class ALUSpec extends AnyFlatSpec with should.Matchers {
     dut.clock.step()
     dut.io.ALUPort.x.peek().litValue should be(out)
   }
-  def testCycle(
-      op: Type
-    ) =
+  def testCycle() = {
+
     simulate(new ALU) { c =>
-      cases.foreach { i =>
-        cases.foreach { j =>
-          testDut(i, j, aluHelper(i, j, op).to32Bit, op, c)
+      ops.foreach { op =>
+        cases.foreach { i =>
+          cases.foreach { j =>
+            testDut(i, j, aluHelper(i, j, op).to32Bit, op, c)
+          }
         }
       }
     }
+  }
 
   def toUInt(
       i: BigInt
