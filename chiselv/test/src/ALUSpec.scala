@@ -1,15 +1,48 @@
 package chiselv
 
 import chisel3._
-import chiseltest._
+import svsim._
+import chisel3.simulator._
 import com.carlosedp.riscvassembler.ObjectUtils.NumericManipulation
 import org.scalatest._
-
 import Instruction._
 import flatspec._
 import matchers._
+import java.io.File
+import scala.reflect.io.Directory
 
-class ALUSpec extends AnyFlatSpec with ChiselScalatestTester with should.Matchers {
+object EphemeralSimulator extends PeekPokeAPI {
+
+  def simulate[T <: RawModule](
+    module: => T
+  )(body:   (T) => Unit
+  ): Unit = {
+    val sim = makeSimulator
+
+    sim.simulate(module)({ module => body(module.wrapped) }).result
+  }
+
+  private class DefaultSimulator(val workspacePath: String) extends SingleBackendSimulator[verilator.Backend] {
+    val backend = verilator.Backend.initializeFromProcessEnvironment()
+    val tag = "default"
+    val commonCompilationSettings = CommonCompilationSettings()
+    val backendSpecificCompilationSettings = verilator.Backend.CompilationSettings()
+    sys.addShutdownHook {
+      (new Directory(new File(workspacePath))).deleteRecursively()
+    }
+  }
+  private def makeSimulator: DefaultSimulator = {
+    // TODO: Use ProcessHandle when we can drop Java 8 support
+    // val id = ProcessHandle.current().pid().toString()
+    val id = java.lang.management.ManagementFactory.getRuntimeMXBean().getName()
+    val className = getClass().getName().stripSuffix("$")
+    new DefaultSimulator(s"test_run_dir/${className}_${id}")
+  }
+}
+
+import EphemeralSimulator._
+
+class ALUSpec extends AnyFlatSpec with should.Matchers {
   val one        = BigInt(1)
   val max        = (one << 32) - one
   val min_signed = one << 32 - 1
@@ -97,12 +130,12 @@ class ALUSpec extends AnyFlatSpec with ChiselScalatestTester with should.Matcher
     dut.io.ALUPort.a.poke(i.to32Bit)
     dut.io.ALUPort.b.poke(j.to32Bit)
     dut.clock.step()
-    dut.io.ALUPort.x.peekInt() should be(out)
+    dut.io.ALUPort.x.peek().litValue should be(out)
   }
   def testCycle(
       op: Type
     ) =
-    test(new ALU) { c =>
+    simulate(new ALU) { c =>
       cases.foreach { i =>
         cases.foreach { j =>
           testDut(i, j, aluHelper(i, j, op).to32Bit, op, c)
